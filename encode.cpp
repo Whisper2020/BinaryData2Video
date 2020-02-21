@@ -4,7 +4,7 @@
 using namespace std;
 
 int main(int argc, char** argv) {
-	cout<<"Alpha"<<endl;
+	cout<<"Encoding.."<<endl;
 	return 0;
 }
 
