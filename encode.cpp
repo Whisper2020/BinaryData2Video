@@ -16,18 +16,13 @@ using namespace std;
 //全局变量定义
 int Rows, Cols;//二进制文件中转为图片的像素的行列信息
 
+/* -----zhr----- */
 int main(int argc, char** argv) {
 	cout<<"Encoding.."<<endl;
 	return 0;
 }
-
-/* -----zhr-----*/
-
-ZHR's code here.
-
 //END zhr.
-
-/*----ldr----*/
+/* -----ldr----- */
 void encode(char *str1, char* str2) {
     FILE* filePoint = NULL;
     fopen_s(&filePoint, str1, "rb");
@@ -47,9 +42,7 @@ void encode(char *str1, char* str2) {
 }
 
 //End ldr
-
-
-/*------yg---------*/
+/* -----y g----- */
 void Image_to_Video_Generate(int num,int frame_width,int frame_height,float frame_fps)//图像合成视频
 {
 //frame_height——图片高度
