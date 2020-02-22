@@ -28,13 +28,15 @@ ZHR's code here.
 //END zhr.
 
 /*----ldr----*/
-void encode(char *str1, char *str2) {
+void encode(char *str1, char* str2) {
     FILE* filePoint = NULL;
     fopen_s(&filePoint, str1, "rb");
     if (filePoint == NULL) {
         cout << "Failed to open file!" << endl;
         return;
     }
+    fread(&Rows, sizeof(int), 1, filePoint);
+    fread(&Cols, sizeof(int), 1, filePoint);
     Mat image(Rows, Cols, CV_8UC3, Scalar::all(0));
     char* pData = (char*)image.data;
     for (int i = 0; i < Rows * Cols; i++)
