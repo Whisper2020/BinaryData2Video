@@ -7,7 +7,7 @@
 #include "opencv2/imgproc/imgproc.hpp"
 
 
-void decode(char* str);//参数为图片的绝对位置
+void decode(char* str1, char* str2);//参数1为图片的绝对位置，参数2为保存图片信息的二进制文件
 using namespace std;
 using namespace cv;
 
@@ -25,21 +25,22 @@ int main(int argc, char** argv) {
 
 //END zhr.
 /*------ldr------*/
-void decode(char* str)
+void decode(char* str1, char* str2)
 {
-	Mat image = imread(str);
-	if (!image.data || image.channels() != 3) {
-		cout << "Can't open the picture or the picture's channels aren't 3." << endl;
-		return;
-	}
-	const int Rows = image.rows, Cols = image.cols;
-	FILE* filePoint = NULL;
-	const char* strs = "encoded.bin";
-	fopen_s(&filePoint, strs, "wb");
-	char* pData = (char*)image.data;
-	for (int i = 0; i < Rows * Cols; i++)
-		for (int j = 0; j < 3; j++)
-			fwrite(&pData[i * 3 + j], sizeof(char), 1, filePoint);
-	fclose(filePoint);
+    Mat image = imread(str1);
+    if (!image.data || image.channels() != 3) {
+        cout << "Can't open the picture or the picture's channels aren't 3." << endl;
+        return;
+    }
+    int Rows = image.rows, Cols = image.cols;
+    FILE* filePoint = NULL;
+    fopen_s(&filePoint, str2, "wb");
+    fwrite(&Rows, sizeof(int), 1, filePoint);
+    fwrite(&Cols, sizeof(int), 1, filePoint);
+    char* pData = (char*)image.data;
+    for (int i = 0; i < Rows * Cols; i++)
+        for (int j = 0; j < 3; j++)
+            fwrite(&pData[i * 3 + j], sizeof(char), 1, filePoint);
+    fclose(filePoint);
 }
 //End ldr
