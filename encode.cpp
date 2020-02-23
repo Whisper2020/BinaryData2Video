@@ -8,13 +8,13 @@
 #include <opencv.hpp>
 
 //函数声明
-void encode(char* str1, const char* str2);//参数1为二进制文件的绝对位置，参数2为要保存为图片的名字
+int encode(char* str1);//参数1为二进制文件的绝对位置,如果出错返回-1，正常运行返回图片的张数
 void Image_to_Video_Generate(int num, int frame_width, int frame_height, float frame_fps, float video_time);//解释在函数实现部分
 
 using namespace cv;
 using namespace std;
 //全局变量定义
-int Rows, Cols;//二进制文件中转为图片的像素的行列信息
+const int Rows = 100, Cols = 100;//二进制文件中转为图片的像素的行列信息
 
 int main(int argc, char** argv) {
 	return work(argc, argv);
@@ -31,24 +31,28 @@ int work(int argc, char** argv) {
 }
 //END zhr.
 /* -----ldr----- */
-void encode(char* str1, const char* str2) { // 修改一下，出错返回-1,正常返回0
-	FILE* filePoint = NULL;
-	fopen_s(&filePoint, str1, "rb");
-	if (filePoint == NULL) {
-		cout << "Failed to open file!" << endl;
-		return;
-	}
-	fread(&Rows, sizeof(int), 1, filePoint);
-	fread(&Cols, sizeof(int), 1, filePoint);
-	Mat image(Rows, Cols, CV_8UC3, Scalar::all(0));
-	char* pData = (char*)image.data;
-	for (int i = 0; i < Rows * Cols; i++)
-		for (int j = 0; j < 3; j++)
-			fread(&pData[i * 3 + j], sizeof(char), 1, filePoint);
-	fclose(filePoint);
-	imwrite(str2, image);
+int encode(char* str1) {
+    FILE* filePoint = NULL;
+    fopen_s(&filePoint, str1, "rb");
+    if (filePoint == NULL) {
+        cout << "Failed to open file!" << endl;
+        return -1;
+    }
+    int num;//图片的张数
+    char name[20];
+    fread(&num, sizeof(int), 1, filePoint);//二进制文件先给出有多少张图片
+    Mat image(Rows, Cols, CV_8UC3, Scalar::all(0));
+    for (int i = 1; i <= num; i++) {
+        sprintf_s(name, "%s%d%s", "image", i, ".jpg");//输出图片的格式
+        char* pData = (char*)image.data;
+        for (int j = 0; j < Rows * Cols; j++)
+            for (int k = 0; k < 3; k++)
+                fread(&pData[j * 3 + k], sizeof(char), 1, filePoint);
+        imwrite(name, image);
+    }
+    fclose(filePoint);
+    return num;
 }
-
 //End ldr
 /* -----y g----- */
 void Image_to_Video_Generate(int num,int frame_width,int frame_height,float frame_fps,float video_time)
