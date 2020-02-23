@@ -44,3 +44,11 @@ void decode(char* str1, char* str2)
     fclose(filePoint);
 }
 //End ldr
+void seperate(const char* pathMp4, const char* pathPng)//seperate("test.mp4", "x%d.png");//示例
+{
+	string strFfmpegPath = "E:\\ffmpeg-4.2.2-win64-static\\bin\\ffmpeg";//ffmpeg.exe所在的位置
+	string strPathMp4 = pathMp4;//待转化的mp4
+	string strPathPng = pathPng;//生成的png
+	string strCmdContent = "/c" + strFfmpegPath + " -i " + strPathMp4 + " " + strPathPng;
+	ShellExecute(NULL, "open", "cmd", strCmdContent.c_str(), NULL, SW_HIDE);
+}
