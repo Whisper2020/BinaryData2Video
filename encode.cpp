@@ -9,7 +9,7 @@
 
 //函数声明
 void encode(char* str1, const char* str2);//参数1为二进制文件的绝对位置，参数2为要保存为图片的名字
-void Image_to_Video_Generate(int num, int frame_width, int frame_height, int frame_fps);//解释在函数实现部分
+void Image_to_Video_Generate(int num, int frame_width, int frame_height, float frame_fps, float video_time);//解释在函数实现部分
 
 using namespace cv;
 using namespace std;
