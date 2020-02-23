@@ -51,19 +51,21 @@ void encode(char* str1, const char* str2) { // 修改一下，出错返回-1,正
 
 //End ldr
 /* -----y g----- */
-void Image_to_Video_Generate(int num, int frame_width, int frame_height, float frame_fps)//图像合成视频
+void Image_to_Video_Generate(int num,int frame_width,int frame_height,float frame_fps,float video_time)
 {
-	//frame_height——图片高度
-	//frame_width——图片宽度
-	//frame_fps——图片帧率
-	//num——图片帧数
-	//图像预先存储命名为：imageXX(eg:image1,image2...)
+//frame_height——图片高度
+//frame_width——图片宽度
+//frame_fps——图片帧率
+//num——图片帧数
+//video_time——视频播放时间，毫秒
+//图像预先存储命名为：imageXX.jpg(eg:image1,image2...)
 	char image_name[20];
 	string s_image_name;
 	VideoWriter writer;
 	int isColor = 1;
-	string video_name = "out.avi";//视频保存为out.avi
-	writer = VideoWriter(video_name, writer.fourcc('X', 'V', 'I', 'D'), frame_fps, Size(frame_width, frame_height), isColor);
+	string video_name = "out.avi";
+	float time = 0;//记录播放时间
+	writer = VideoWriter(video_name,writer.fourcc('X', 'V', 'I', 'D'), frame_fps, Size(frame_width, frame_height), isColor);
 	cout << "frame_width is " << frame_width << endl;
 	cout << "frame_height is " << frame_height << endl;
 	cout << "frame_fps is " << frame_fps << endl;
@@ -79,12 +81,15 @@ void Image_to_Video_Generate(int num, int frame_width, int frame_height, float f
 			cout << "Could not load image file...\n" << endl;
 		}
 		writer.write(img);
-		if (waitKey(30) == 27 || i == num)//27 ESC键ascll码
+		time += frame_fps;
+		if (waitKey(frame_fps) == 27 || i == num)//27 ESC键ascll码
 		{
 			cout << "按下ESC键" << endl;
 			break;
 		}
-	}
+		if (time >= video_time)
+			break;
+	}	
 }
 //end yg
 
