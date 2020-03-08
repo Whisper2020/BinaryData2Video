@@ -3,5 +3,7 @@
 ### 在main.cpp中加#include "QRCodeTools.h"
 
 *就可以使用了。*
+
 详情见示例Demo.cpp
+
                             *——zhr*
