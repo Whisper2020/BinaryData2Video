@@ -3,7 +3,7 @@
 using namespace std;
 using namespace cv;
 
-void Demo() {
+void TestRead() {
 	QRDecodeTools i;
 	Mat img = imread("test.png");
 	i.flush();
@@ -20,9 +20,21 @@ void Demo() {
 	}
 	return;
 }
+void TestWrite() {
+	QREncodeTools i;
+	Mat img;
+	i.write(40, 40, 1);
+	i.display(); //可以临时查看写图结果
+	cout<<"Size:"<<i.output(img);
+	i.flush();
+	namedWindow("Image", WINDOW_AUTOSIZE);
+	imshow("Image", img);
+	waitKey();
+}
 int main()
 {
-	Demo();
+	//TestRead();
+	TestWrite();
 	return 0;
 }
 
