@@ -27,7 +27,7 @@ int QRCodeTools::checkPos(const int x, const int y) const //return 1 if err
 	int chk = 0;
 	if (x < 0 || x >= sz || y < 0 || y >= sz)	chk = 1;
 	else if (x == 6 || y == 6)	chk = 1;
-	else if ((x < 8 && y < 8) || (x < 8 && sz - y < 9) || (sz - x < 9 && sz - y < 9))	chk = 1;
+	else if ((x < 8 && y < 8) || (x < 8 && sz - y < 9) || (y < 8 && sz - x < 9))	chk = 1;
 	return chk;
 }
 
@@ -145,7 +145,7 @@ void QREncodeTools::makeSrc() //生成二维码模板
 	drawLocator(6, 6); //画四个定位块
 	drawLocator(6, sz - 1);
 	drawLocator(sz - 1, 6);
-	drawLocator(sz - 1, sz - 1);
+	//drawLocator(sz - 1, sz - 1);
 	for (int i = 9; i < sz - 3; ++i) { //画时间线
 		src.at<uchar>(cv::Point(i, 9)) = (i & 1) ? 0 : 255;
 		src.at<uchar>(cv::Point(9, i)) = (i & 1) ? 0 : 255;
