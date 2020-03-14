@@ -22,12 +22,17 @@ QRDecodeTools::~QRDecodeTools()
 	img.~Mat();
 }
 
+int QRCodeTools::mask(const int x, const int y) const
+{
+	return (x*y %3 + (x+y)&1)&1;
+}
+
 int QRCodeTools::checkPos(const int x, const int y) const //return 1 if err
 {
 	int chk = 0;
 	if (x < 0 || x >= sz || y < 0 || y >= sz)	chk = 1;
 	else if (x == 6 || y == 6)	chk = 1;
-	else if ((x < 8 && y < 8) || (x < 8 && sz - y < 9) || (y < 8 && sz - x < 9))	chk = 1;
+	else if ((x < 8 && y < 8) || (x < 8 && sz - y < 9) || (sz - x < 9 && y < 8))	chk = 1;
 	return chk;
 }
 
@@ -61,6 +66,8 @@ int QRDecodeTools::loadQRCode(cv::InputArray in)
 
 int QRDecodeTools::detected()
 {
+	if (dbg && gotQR)
+		std::cout << Rect[0] << Rect[1] << Rect[2] << Rect[3] << std::endl;
 	return gotQR;
 }
 
@@ -72,7 +79,7 @@ int QRDecodeTools::read(const int x, const int y) const
 		std::cout << "Pos error:(" << x << "," << y <<") can't be read."<< std::endl;
 		return -1;
 	}
-	val = img.at<uchar>(map(x, y));
+	val = img.at<uchar>(map(x, y)) ^ mask(x, y);
 	if (dbg)
 		std::cout << "got "<< val<<" at "<< map(x, y) <<std::endl;
 	if (val <= Eps * UCHAR_MAX)	return 0;
@@ -110,14 +117,10 @@ int QREncodeTools::write(const int x, const int y, const int bit)
 		std::cout << "Pos error:(" << x << "," << y << ") can't be written." << std::endl;
 		return -1;
 	}
-	img.at<uchar>(cv::Point(x + 3, y + 3)) = bit ? UCHAR_MAX : 0;
+	img.at<uchar>(cv::Point(x + 3, y + 3)) = (bit ^ mask(x, y)) ? UCHAR_MAX : 0;
 	if (dbg)
 		std::cout << "wrote " << bit << " at " << cv::Point(x, y) << std::endl;
 	return 0;
-}
-
-void QREncodeTools::mask()
-{
 }
 
 void QREncodeTools::display()const
@@ -135,7 +138,6 @@ cv::Size QREncodeTools::output(cv::OutputArray out, int rate)
 	//img.copyTo(out);
 	cv::Size outSize(sz + 6, sz + 6);
 	outSize *= rate;
-	mask();
 	cv::resize(img, out, outSize, rate, rate, cv::INTER_NEAREST);
 	return outSize;
 }
