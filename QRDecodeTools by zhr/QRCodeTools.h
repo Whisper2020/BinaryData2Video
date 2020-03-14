@@ -10,6 +10,7 @@ public:
 protected:
 	int Ver, sz; //Ver 二维码的版本，sz 长宽所占像素
 	bool dbg; //调试标志
+	int mask(const int x, const int y)const; //上掩膜。
 	cv::Mat img;
 	int checkPos(const int x, const int y)const; //检查坐标是否是可写入的合法坐标
 };
@@ -18,7 +19,7 @@ public:
 	QREncodeTools(int v = 16);
 	void flush(); //!!写完一张图片后要刷新
 	int write(const int x, const int y, const int bit); //依次为x,y（从0开始）,bit=0写入黑色，bit=1写入白色
-	void mask(); //上掩膜，待补充。
+
 	void display()const; //在stdout临时查看编码结果，需要把控制台的行宽调大
 	cv::Size output(cv::OutputArray, int rate = 7); //输出到OutputArray。默认rate=7,一个原像素=7*7，返回的Size是帧的宽高
 private:
