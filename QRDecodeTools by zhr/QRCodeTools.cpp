@@ -2,7 +2,7 @@
 #include <iostream>
 
 
-QRCodeTools::QRCodeTools(int v) :Ver(v), sz(4 * (v - 1) + 21), dbg(false) {}
+QRCodeTools::QRCodeTools(int v) :Ver(v), sz(4 * (v - 1) + 21), dbg(false), maskID(0) {}
 
 QRCodeTools::~QRCodeTools(){}
 
@@ -24,7 +24,19 @@ QRDecodeTools::~QRDecodeTools()
 
 int QRCodeTools::mask(const int x, const int y) const
 {
-	return (x*y %3 + (x+y)&1)&1;
+	if (x < 6 && x > 2 && y == 10)
+		return 0;
+	switch (maskID) {
+	case 0: return (x + y) & 1;
+	case 1: return y & 1;
+	case 2: return x % 3 == 0;
+	case 3: return (x + y) % 3==0;
+	case 4: return ((y & 1) + (x % 3)) &1;
+	case 5: return (((x * y) & 1) + x * y % 3) % 3==0;
+	case 6: return (((x * y) & 1) + x * y % 3) & 1;
+	case 7: return ((x * y) % 3 + (x + y) & 1) & 1;
+	}
+	return 0;
 }
 
 int QRCodeTools::checkPos(const int x, const int y) const //return 1 if err
@@ -33,6 +45,7 @@ int QRCodeTools::checkPos(const int x, const int y) const //return 1 if err
 	if (x < 0 || x >= sz || y < 0 || y >= sz)	chk = 1;
 	else if (x == 6 || y == 6)	chk = 1;
 	else if ((x < 8 && y < 8) || (x < 8 && sz - y < 9) || (sz - x < 9 && y < 8))	chk = 1;
+	else if (x > 2 && x < 6 && y == 10)	chk = 1;
 	return chk;
 }
 
@@ -61,6 +74,9 @@ int QRDecodeTools::loadQRCode(cv::InputArray in)
 		cv::cvtColor(in, img, cv::COLOR_BGR2GRAY);
 	else
 		in.getMat().copyTo(img);
+	maskID = ((img.at<uchar>(map(3, 10)) &1) << 2) + ((img.at<uchar>(map(4, 10)) & 1)<< 1) + (img.at<uchar>(map(5, 10)) & 1);
+	if (dbg)
+		std::cout << "maskID=" << maskID << std::endl;
 	return true;
 }
 
@@ -79,11 +95,11 @@ int QRDecodeTools::read(const int x, const int y) const
 		std::cout << "Pos error:(" << x << "," << y <<") can't be read."<< std::endl;
 		return -1;
 	}
-	val = img.at<uchar>(map(x, y)) ^ mask(x, y);
+	val = img.at<uchar>(map(x, y));
 	if (dbg)
 		std::cout << "got "<< val<<" at "<< map(x, y) <<std::endl;
-	if (val <= Eps * UCHAR_MAX)	return 0;
-	else if (val >= (1 - Eps) * UCHAR_MAX)	return 1;
+	if (val <= Eps * UCHAR_MAX)	return mask(x, y);
+	else if (val >= (1 - Eps) * UCHAR_MAX)	return !mask(x, y);
 	else throw val;
 }
 
@@ -97,6 +113,7 @@ void QRDecodeTools::setThreshold(const float x)
 void QRDecodeTools::flush()
 {
 	gotQR = 0;
+	maskID = 0;
 	Rect.clear();
 }
 
@@ -108,13 +125,14 @@ QREncodeTools::QREncodeTools(int v):QRCodeTools(v){
 
 void QREncodeTools::flush()
 {
+	maskID = 0;
 	src.copyTo(img);
 }
 
 int QREncodeTools::write(const int x, const int y, const int bit)
 {
 	if (checkPos(x, y)) {
-		std::cout << "Pos error:(" << x << "," << y << ") can't be written." << std::endl;
+		//std::cout << "Pos error:(" << x << "," << y << ") can't be written." << std::endl;
 		return -1;
 	}
 	img.at<uchar>(cv::Point(x + 3, y + 3)) = (bit ^ mask(x, y)) ? UCHAR_MAX : 0;
@@ -136,8 +154,20 @@ void QREncodeTools::display()const
 cv::Size QREncodeTools::output(cv::OutputArray out, int rate)
 {
 	//img.copyTo(out);
+	if (checkValid(rate)) {
+		std::cerr << "this frame can't be encoded." << std::endl;
+		//std::cerr << "-1";
+		return cv::Size(0, 0);
+	}
+	//std::cout << "Here";
 	cv::Size outSize(sz + 6, sz + 6);
 	outSize *= rate;
+	if (dbg) {
+		std::cout << "MaskID=" << maskID << std::endl;
+	}
+	img.at<uchar>(cv::Point(3+3, 10+3)) = ((maskID >> 2) & 1) ? UCHAR_MAX : 0;
+	img.at<uchar>(cv::Point(4+3, 10+3)) = ((maskID >> 1) & 1) ? UCHAR_MAX : 0;
+	img.at<uchar>(cv::Point(5+3, 10+3)) = (maskID & 1) ? UCHAR_MAX : 0;
 	cv::resize(img, out, outSize, rate, rate, cv::INTER_NEAREST);
 	return outSize;
 }
@@ -169,4 +199,52 @@ void QREncodeTools::drawLocator(const int x, const int y)
 			t = std::max(labs(i - x), labs(j - y));
 			src.at<uchar>(cv::Point(i, j)) = (t == 2 || t == 4) ? 255 : 0;
 		}
+}
+
+int QREncodeTools::checkValid(const int rate)
+{
+
+	cv::resize(img, tmp, cv::Size(sz + 6, sz + 6)*rate, rate, rate, cv::INTER_NEAREST);
+	if (maskID) {
+		if (dbg)
+			std::cout << "Change mask:" << maskID << std::endl;
+		//cv::namedWindow("Image", cv::WINDOW_AUTOSIZE);
+		//imshow("Image", tmp);
+		//cv::waitKey();
+	}
+
+	//imwrite("tmp.jpg", tmp);
+	if (wheels.detect(tmp, Rect) && (epseq(Rect[0].y, Rect[1].y) && epseq(Rect[0].x, Rect[3].x) && epseq(Rect[1].x, Rect[2].x) && epseq(Rect[2].y, Rect[3].y)))
+		return 0;
+	return regenerate(rate);
+}
+
+int QREncodeTools::regenerate(const int rate)
+{
+	int bit;
+	if (maskID == 7) {
+		return -1;
+	}
+	for (int i = 0; i < sz; ++i)
+		for (int j = 0; j < sz; ++j) 
+		if (!checkPos(i, j)){
+			bit = img.at<uchar>(cv::Point(i + 3, j + 3)) & 1;
+			bit ^= mask(i, j);
+			img.at<uchar>(cv::Point(i + 3, j + 3)) = bit;
+		}
+	maskID++;
+	for (int i = 0; i < sz; ++i)
+		for (int j = 0; j < sz; ++j) 
+			if (!checkPos(i, j)) {
+			bit = img.at<uchar>(cv::Point(i + 3, j + 3));
+			bit ^= mask(i, j);
+			img.at<uchar>(cv::Point(i + 3, j + 3)) = bit ? UCHAR_MAX : 0;
+		}
+	return checkValid(rate);
+}
+
+int QREncodeTools::epseq(float x, float y) const
+{
+	//std::cout << "Comparing" << x << ' ' << y << std::endl;
+	return fabs(x - y) < 1e-1;
 }
