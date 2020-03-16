@@ -3,15 +3,17 @@
 #include <vector>
 class QRCodeTools { //两种工具的基类
 public:
-	QRCodeTools(int v = 16); //v是二维码的版本
+	QRCodeTools(int v = 11); //v是二维码的版本
 	~QRCodeTools();
 	void setDbg(bool flag);//设置调试标志=1每次输出read/write的实际像素坐标。默认=0
 	virtual void flush()=0;
 protected:
-	int Ver, sz; //Ver 二维码的版本，sz 长宽所占像素
+	int Ver, sz, maskID; //Ver 二维码的版本，sz 长宽所占像素
 	bool dbg; //调试标志
 	int mask(const int x, const int y)const; //上掩膜。
 	cv::Mat img;
+	cv::QRCodeDetector wheels;
+	std::vector <cv::Point2f> Rect;
 	int checkPos(const int x, const int y)const; //检查坐标是否是可写入的合法坐标
 };
 class QREncodeTools: public QRCodeTools {
@@ -23,14 +25,17 @@ public:
 	void display()const; //在stdout临时查看编码结果，需要把控制台的行宽调大
 	cv::Size output(cv::OutputArray, int rate = 7); //输出到OutputArray。默认rate=7,一个原像素=7*7，返回的Size是帧的宽高
 private:
-	cv::Mat src;
+	cv::Mat src, tmp;
 	void makeSrc();
 	void drawLocator(const int x, const int y);
+	int checkValid(const int rate);
+	int regenerate(const int rate);
+	inline int epseq(float x, float y)const;
 };
 class QRDecodeTools: public QRCodeTools
 {
 public:	
-	QRDecodeTools(int v = 16, float e = 0.2f); //v默认（无参）即可（sz=81*81，Ver=16），e是检测阈值，默认0.2
+	QRDecodeTools(int v = 16, float e = 0.2f); //v默认（无参）即可（sz=61*61，Ver=11），e是检测阈值，默认0.2
 	int loadQRCode(cv::InputArray in); //加载并检测图片，如果检测到二维码返回1，否则返回0
 	int detected(); //load之后用来判断是否检测到二维码，检测到返回True，否则返回0
 	int read(const int x, const int y)const; //获取对应坐标（x,y）的编码值，坐标越界则返回-1，正常读取（在阈值内）则返回0（代表黑色），或1（代表白色），不清楚则抛出uchar的异常代表灰度值。debug=1时输出像素点位置。
@@ -40,8 +45,6 @@ public:
 private:
 	int gotQR;
 	float Eps;
-	cv::QRCodeDetector wheels;
-	std::vector <cv::Point2f> Rect;
 	cv::Point map(const int x, const int y) const; //read坐标到像素点坐标的映射
 	cv::Point2f rate(const int p, const cv::Point2f& a, const cv::Point2f& b)const;
 };
