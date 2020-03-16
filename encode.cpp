@@ -8,7 +8,7 @@
 
 //函数声明
 int encode(const char* str1);//参数1为二进制文件的绝对位置,如果出错返回-1，正常运行返回图片的张数
-void Image_to_Video_Generate(int num, float frame_fps, float video_time);//解释在函数实现部分
+void Image_to_Video_Generate(int num,int frame_width,int frame_height,float frame_fps,float video_time);//解释在函数实现部分
 int work(int argc, char** argv);
 using namespace cv;
 using namespace std;
@@ -55,27 +55,34 @@ int encode(const char* str1) {
 }
 //End ldr
 /* -----y g----- */
-void Image_to_Video_Generate(int num, float frame_fps, float video_time)
+/*图像生成视频*/
+void Image_to_Video_Generate(int num,int frame_width,int frame_height,float frame_fps,float video_time)
 {
-	//frame_height——图片高度
-	//frame_width——图片宽度
-	//frame_fps——图片帧率
-	//num——图片帧数
-	//video_time——视频播放时间，毫秒
-	//图像预先存储命名为：imageXX.jpg(eg:image1,image2...)
+//frame_height——图片高度
+//frame_width——图片宽度
+//frame_fps——图片帧率,初步定为10.0
+//num——图片帧数
+//video_time——视频播放时间，秒
+//图像预先存储命名为：imageXX.jpg(eg:image1,image2...)
 	char image_name[20];
 	string s_image_name;
 	VideoWriter writer;
-	int isColor = 1;
-	string video_name = "out.avi";
+	int isColor = 1;//非0为彩色
+	string video_name = "output.avi";
 	float time = 0;//记录播放时间
-	writer = VideoWriter(video_name, writer.fourcc('X', 'V', 'I', 'D'), frame_fps, Size(Rows, Cols), isColor);
-	cout << "frame_width is " << Rows << endl;
-	cout << "frame_height is " << Cols << endl;
+	writer = VideoWriter(video_name,writer.fourcc('X', 'V', 'I', 'D'), frame_fps, Size(frame_width, frame_height), isColor);
+	cout << "frame_width is " << frame_width << endl;
+	cout << "frame_height is " << frame_height << endl;
 	cout << "frame_fps is " << frame_fps << endl;
 	int i = 0;
 	Mat img;
-	while (i <= num)
+	int Video_Num = (int)(frame_fps* video_time);
+	if (Video_Num > num)
+	{
+		cout << "视频长度不足,按原长度播放" << endl;
+		Video_Num = num;
+	}
+	while (i <= Video_Num)
 	{
 		sprintf_s(image_name, "%s%d%s", "image", ++i, ".jpg");//将所存图片名字写入
 		s_image_name = image_name;
@@ -85,14 +92,13 @@ void Image_to_Video_Generate(int num, float frame_fps, float video_time)
 			cout << "Could not load image file...\n" << endl;
 		}
 		writer.write(img);
-		time += frame_fps;
-		if (waitKey(frame_fps) == 27 || i == num)//27 ESC键ascll码
+		if (waitKey(30) == 27 || i == num)//27 ESC键ascll码
 		{
 			cout << "按下ESC键" << endl;
 			break;
 		}
-		if (time >= video_time)
-			break;
+		
 	}
+	cout << "视频已生成" << endl;
 }
 //end yg
