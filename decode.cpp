@@ -2,11 +2,11 @@
 #include <iostream>
 #include <cstdlib>
 #include <cstdio>
-//#include "opencv2/opencv.hpp"
+#include "opencv2/opencv.hpp"
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
 
-
+void Video_To_Image_Separate(string filename);
 void decode(char* str1, char* str2);//参数1为图片的绝对位置，参数2为保存图片信息的二进制文件
 using namespace std;
 using namespace cv;
