@@ -24,7 +24,7 @@ QRDecodeTools::~QRDecodeTools()
 
 int QRCodeTools::mask(const int x, const int y) const
 {
-	if (x < 6 && x > 2 && y == 10)
+	if (y < 6 && y > 2 && x == 10)
 		return 0;
 	switch (maskID) {
 	case 0: return (x + y) & 1;
@@ -45,7 +45,7 @@ int QRCodeTools::checkPos(const int x, const int y) const //return 1 if err
 	if (x < 0 || x >= sz || y < 0 || y >= sz)	chk = 1;
 	else if (x == 6 || y == 6)	chk = 1;
 	else if ((x < 8 && y < 8) || (x < 8 && sz - y < 9) || (sz - x < 9 && y < 8))	chk = 1;
-	else if (x > 2 && x < 6 && y == 10)	chk = 1;
+	else if (y > 2 && y < 6 && x == 10)	chk = 1;
 	return chk;
 }
 
@@ -74,7 +74,7 @@ int QRDecodeTools::loadQRCode(cv::InputArray in)
 		cv::cvtColor(in, img, cv::COLOR_BGR2GRAY);
 	else
 		in.getMat().copyTo(img);
-	maskID = ((img.at<uchar>(map(3, 10)) &1) << 2) + ((img.at<uchar>(map(4, 10)) & 1)<< 1) + (img.at<uchar>(map(5, 10)) & 1);
+	maskID = ((img.at<uchar>(map(10, 3)) &1) << 2) + ((img.at<uchar>(map(10, 4)) & 1)<< 1) + (img.at<uchar>(map(10, 5)) & 1);
 	if (dbg)
 		std::cout << "maskID=" << maskID << std::endl;
 	return true;
@@ -165,9 +165,9 @@ cv::Size QREncodeTools::output(cv::OutputArray out, int rate)
 	if (dbg) {
 		std::cout << "MaskID=" << maskID << std::endl;
 	}
-	img.at<uchar>(cv::Point(3+3, 10+3)) = ((maskID >> 2) & 1) ? UCHAR_MAX : 0;
-	img.at<uchar>(cv::Point(4+3, 10+3)) = ((maskID >> 1) & 1) ? UCHAR_MAX : 0;
-	img.at<uchar>(cv::Point(5+3, 10+3)) = (maskID & 1) ? UCHAR_MAX : 0;
+	img.at<uchar>(cv::Point(10+3, 3+3)) = ((maskID >> 2) & 1) ? UCHAR_MAX : 0;
+	img.at<uchar>(cv::Point(10+3, 4+3)) = ((maskID >> 1) & 1) ? UCHAR_MAX : 0;
+	img.at<uchar>(cv::Point(10+3, 5+3)) = (maskID & 1) ? UCHAR_MAX : 0;
 	cv::resize(img, out, outSize, rate, rate, cv::INTER_NEAREST);
 	return outSize;
 }
