@@ -18,7 +18,7 @@ protected:
 };
 class QREncodeTools: public QRCodeTools {
 public:
-	QREncodeTools(int v = 16);
+	QREncodeTools(int v = 11);
 	void flush(); //!!写完一张图片后要刷新
 	int write(const int x, const int y, const int bit); //依次为x,y（从0开始）,bit=0写入黑色，bit=1写入白色
 
@@ -35,7 +35,7 @@ private:
 class QRDecodeTools: public QRCodeTools
 {
 public:	
-	QRDecodeTools(int v = 16, float e = 0.2f); //v默认（无参）即可（sz=61*61，Ver=11），e是检测阈值，默认0.2
+	QRDecodeTools(int v = 11, float e = 0.2f); //v默认（无参）即可（sz=61*61，Ver=11），e是检测阈值，默认0.2
 	int loadQRCode(cv::InputArray in); //加载并检测图片，如果检测到二维码返回1，否则返回0
 	int detected(); //load之后用来判断是否检测到二维码，检测到返回True，否则返回0
 	int read(const int x, const int y)const; //获取对应坐标（x,y）的编码值，坐标越界则返回-1，正常读取（在阈值内）则返回0（代表黑色），或1（代表白色），不清楚则抛出uchar的异常代表灰度值。debug=1时输出像素点位置。
