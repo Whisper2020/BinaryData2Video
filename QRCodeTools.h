@@ -5,77 +5,83 @@
 #include "opencv2\opencv.hpp"
 #include "opencv2\highgui\highgui.hpp"
 #include "opencv2\imgproc\imgproc.hpp"
-#include "const.h"
-class QRCodeTools { //Á½ÖÖ¹¤¾ßµÄ»ùÀà
+
+using namespace cv;
+using namespace std;
+
+class QRCodeTools { //ä¸¤ç§å·¥å…·çš„åŸºç±»
 public:
-	QRCodeTools(int v = 11); //vÊÇ¶şÎ¬ÂëµÄ°æ±¾
+	QRCodeTools(int v = 11); //væ˜¯äºŒç»´ç çš„ç‰ˆæœ¬
 	~QRCodeTools();
-	void setDbg(bool flag);//ÉèÖÃµ÷ÊÔ±êÖ¾=1Ã¿´ÎÊä³öread/writeµÄÊµ¼ÊÏñËØ×ø±ê¡£Ä¬ÈÏ=0
+	void setDbg(bool flag);//è®¾ç½®è°ƒè¯•æ ‡å¿—=1æ¯æ¬¡è¾“å‡ºread/writeçš„å®é™…åƒç´ åæ ‡ã€‚é»˜è®¤=0
 	virtual void flush() = 0;
 protected:
-	int Ver, sz; //Ver ¶şÎ¬ÂëµÄ°æ±¾£¬sz ³¤¿íËùÕ¼ÏñËØ
-	bool dbg; //µ÷ÊÔ±êÖ¾
-	int mask(const int x, const int y)const; //ÉÏÑÚÄ¤¡£
+	int Ver, sz, maskID; //Ver äºŒç»´ç çš„ç‰ˆæœ¬ï¼Œsz é•¿å®½æ‰€å åƒç´ 
+	bool dbg; //è°ƒè¯•æ ‡å¿—
+	int mask(const int x, const int y)const; //ä¸Šæ©è†œã€‚
 	cv::Mat img;
-	int checkPos(const int x, const int y)const; //¼ì²é×ø±êÊÇ·ñÊÇ¿ÉĞ´ÈëµÄºÏ·¨×ø±ê
+	cv::QRCodeDetector wheels;
+	std::vector <cv::Point2f> Rect;
+	int checkPos(const int x, const int y)const; //æ£€æŸ¥åæ ‡æ˜¯å¦æ˜¯å¯å†™å…¥çš„åˆæ³•åæ ‡
 	const int AreaCount = 11;
 	const int QrLocaterSize = 8;
 	const int QrSize = 4 * (Ver - 1) + 21;
-	const int areapos[11][2][2] =//[2][2]µÚÒ»Î¬¶ÈÎª¿í¸ß£¬µÚ¶şÎ¬¶ÈÎª×óÉÏ½Ç×ø±ê
+	const int areapos[11][2][2] =//[2][2]ç¬¬ä¸€ç»´åº¦ä¸ºå®½é«˜ï¼Œç¬¬äºŒç»´åº¦ä¸ºå·¦ä¸Šè§’åæ ‡
 	{
-	 {{QrLocaterSize - 2,3} ,{0,QrLocaterSize}},//Ö¡±àÂëÓë½áÊøÖ¡±ê¼Ç
-	 {{QrLocaterSize - 2,2},{0,QrLocaterSize + 3}},//½áÊøÖ¡ĞÅÏ¢³¤¶È
+	 {{QrLocaterSize - 2,3} ,{0,QrLocaterSize}},//å¸§ç¼–ç ä¸ç»“æŸå¸§æ ‡è®°
+	 {{QrLocaterSize - 2,2},{0,QrLocaterSize + 3}},//ç»“æŸå¸§ä¿¡æ¯é•¿åº¦
 
-	 {{QrLocaterSize - 2,QrSize - 5 - 2 * QrLocaterSize},{0,QrLocaterSize + 5}},//×ó²àÊı¾İÇø
-	 {{QrSize - 2 * QrLocaterSize,QrLocaterSize - 2},{QrLocaterSize,0}},//ÉÏ²àÊı¾İÇø
-	 {{QrSize - 1 - QrLocaterSize,QrSize - 1 - QrLocaterSize},{QrLocaterSize,QrLocaterSize}},//ÖĞÑëÊı¾İÇø
+	 {{QrLocaterSize - 2,QrSize - 5 - 2 * QrLocaterSize},{0,QrLocaterSize + 5}},//å·¦ä¾§æ•°æ®åŒº
+	 {{QrSize - 2 * QrLocaterSize,QrLocaterSize - 2},{QrLocaterSize,0}},//ä¸Šä¾§æ•°æ®åŒº
+	 {{QrSize - 1 - QrLocaterSize,QrSize - 1 - QrLocaterSize},{QrLocaterSize,QrLocaterSize}},//ä¸­å¤®æ•°æ®åŒº
 
-	 {{1,QrSize - 5 - 2 * QrLocaterSize},{QrLocaterSize - 1,QrLocaterSize}},//×ó²àĞĞĞ£ÑéÂë
-	 {{QrLocaterSize - 2,1},{0,QrSize - 1 - QrLocaterSize}},//×ó²àÁĞĞ£ÑéÂë
-	 {{1,QrLocaterSize - 2},{QrSize - 1 - QrLocaterSize,0}},//ÉÏ²àĞĞĞ£ÑéÂë
-	 {{QrSize - 2 * QrLocaterSize,1},{QrLocaterSize,QrLocaterSize - 1}},//ÉÏ²àÁĞĞ£ÑéÂë
-	 {{1,QrSize - QrLocaterSize},{QrSize - 1,QrLocaterSize}},//ÖĞÑëĞĞĞ£ÑéÂë
-	 {{QrSize - QrLocaterSize,1},{QrLocaterSize,QrSize - 1}}//ÖĞÑëÁĞĞ£ÑéÂë
+	 {{1,QrSize - 5 - 2 * QrLocaterSize},{QrLocaterSize - 1,QrLocaterSize}},//å·¦ä¾§è¡Œæ ¡éªŒç 
+	 {{QrLocaterSize - 2,1},{0,QrSize - 1 - QrLocaterSize}},//å·¦ä¾§åˆ—æ ¡éªŒç 
+	 {{1,QrLocaterSize - 2},{QrSize - 1 - QrLocaterSize,0}},//ä¸Šä¾§è¡Œæ ¡éªŒç 
+	 {{QrSize - 2 * QrLocaterSize,1},{QrLocaterSize,QrLocaterSize - 1}},//ä¸Šä¾§åˆ—æ ¡éªŒç 
+	 {{1,QrSize - QrLocaterSize},{QrSize - 1,QrLocaterSize}},//ä¸­å¤®è¡Œæ ¡éªŒç 
+	 {{QrSize - QrLocaterSize,1},{QrLocaterSize,QrSize - 1}}//ä¸­å¤®åˆ—æ ¡éªŒç 
 	};
 };
 class QREncodeTools : public QRCodeTools {
 public:
 	QREncodeTools(int v = 11);
-	void flush(); //!!Ğ´ÍêÒ»ÕÅÍ¼Æ¬ºóÒªË¢ĞÂ
-	int write(const int x, const int y, const int bit); //ÒÀ´ÎÎªx,y£¨´Ó0¿ªÊ¼£©,bit=0Ğ´ÈëºÚÉ«£¬bit=1Ğ´Èë°×É«
+	void flush(); //!!å†™å®Œä¸€å¼ å›¾ç‰‡åè¦åˆ·æ–°
+	int write(const int x, const int y, const int bit); //ä¾æ¬¡ä¸ºx,yï¼ˆä»0å¼€å§‹ï¼‰,bit=0å†™å…¥é»‘è‰²ï¼Œbit=1å†™å…¥ç™½è‰²
 
-	void display()const; //ÔÚstdoutÁÙÊ±²é¿´±àÂë½á¹û£¬ĞèÒª°Ñ¿ØÖÆÌ¨µÄĞĞ¿íµ÷´ó
-	cv::Size output(cv::OutputArray, int rate = 7); //Êä³öµ½OutputArray¡£Ä¬ÈÏrate=7,Ò»¸öÔ­ÏñËØ=7*7£¬·µ»ØµÄSizeÊÇÖ¡µÄ¿í¸ß
+	void display()const; //åœ¨stdoutä¸´æ—¶æŸ¥çœ‹ç¼–ç ç»“æœï¼Œéœ€è¦æŠŠæ§åˆ¶å°çš„è¡Œå®½è°ƒå¤§
+	cv::Size output(cv::OutputArray, int rate = 7); //è¾“å‡ºåˆ°OutputArrayã€‚é»˜è®¤rate=7,ä¸€ä¸ªåŸåƒç´ =7*7ï¼Œè¿”å›çš„Sizeæ˜¯å¸§çš„å®½é«˜
 	void WriteFrame(bool datamatrix[][TSIZE], int flames);
 private:
-	cv::Mat src;
+	cv::Mat src, tmp;
 	void makeSrc();
 	void drawLocator(const int x, const int y);
+	int checkValid(const int rate);
+	int regenerate(const int rate);
+	inline int epseq(float x, float y)const;
 };
 class QRDecodeTools : public QRCodeTools
 {
 public:
-	QRDecodeTools(int v = 11, float e = 0.2f); //vÄ¬ÈÏ£¨ÎŞ²Î£©¼´¿É£¨sz=81*81£¬Ver=16£©£¬eÊÇ¼ì²âãĞÖµ£¬Ä¬ÈÏ0.2
-	int loadQRCode(cv::InputArray in); //¼ÓÔØ²¢¼ì²âÍ¼Æ¬£¬Èç¹û¼ì²âµ½¶şÎ¬Âë·µ»Ø1£¬·ñÔò·µ»Ø0
-	int detected(); //loadÖ®ºóÓÃÀ´ÅĞ¶ÏÊÇ·ñ¼ì²âµ½¶şÎ¬Âë£¬¼ì²âµ½·µ»ØTrue£¬·ñÔò·µ»Ø0
-	int read(const int x, const int y)const; //»ñÈ¡¶ÔÓ¦×ø±ê£¨x,y£©µÄ±àÂëÖµ£¬×ø±êÔ½½çÔò·µ»Ø-1£¬Õı³£¶ÁÈ¡£¨ÔÚãĞÖµÄÚ£©Ôò·µ»Ø0£¨´ú±íºÚÉ«£©£¬»ò1£¨´ú±í°×É«£©£¬²»Çå³şÔòÅ×³öucharµÄÒì³£´ú±í»Ò¶ÈÖµ¡£debug=1Ê±Êä³öÏñËØµãÎ»ÖÃ¡£
-	void setThreshold(const float x); //Éè¶¨¼ì²âãĞÖµ£¬·¶Î§[0,0.5)¡£Ä¬ÈÏÎª0.2 ¼´£ºread(x,y)Ê±£¬ÏñËØ»Ò¶È[0,0.2*255]Îª°×É«£¬[0.8*255,255]ÎªºÚÉ«£¬·¶Î§ÍâÔòÈÏÎªÄ£ºı£¬Å×³öÒì³£
-	void flush(); //!!loadQRCode(ĞÂµÄÖ¡)Ö®Ç°¶¼ÒªË¢ĞÂ
+	QRDecodeTools(int v = 11, float e = 0.2f); //vé»˜è®¤ï¼ˆæ— å‚ï¼‰å³å¯ï¼ˆsz=61*61ï¼ŒVer=11ï¼‰ï¼Œeæ˜¯æ£€æµ‹é˜ˆå€¼ï¼Œé»˜è®¤0.2
+	int loadQRCode(cv::InputArray in); //åŠ è½½å¹¶æ£€æµ‹å›¾ç‰‡ï¼Œå¦‚æœæ£€æµ‹åˆ°äºŒç»´ç è¿”å›1ï¼Œå¦åˆ™è¿”å›0
+	int detected(); //loadä¹‹åç”¨æ¥åˆ¤æ–­æ˜¯å¦æ£€æµ‹åˆ°äºŒç»´ç ï¼Œæ£€æµ‹åˆ°è¿”å›Trueï¼Œå¦åˆ™è¿”å›0
+	int read(const int x, const int y)const; //è·å–å¯¹åº”åæ ‡ï¼ˆx,yï¼‰çš„ç¼–ç å€¼ï¼Œåæ ‡è¶Šç•Œåˆ™è¿”å›-1ï¼Œæ­£å¸¸è¯»å–ï¼ˆåœ¨é˜ˆå€¼å†…ï¼‰åˆ™è¿”å›0ï¼ˆä»£è¡¨é»‘è‰²ï¼‰ï¼Œæˆ–1ï¼ˆä»£è¡¨ç™½è‰²ï¼‰ï¼Œä¸æ¸…æ¥šåˆ™æŠ›å‡ºucharçš„å¼‚å¸¸ä»£è¡¨ç°åº¦å€¼ã€‚debug=1æ—¶è¾“å‡ºåƒç´ ç‚¹ä½ç½®ã€‚
+	void setThreshold(const float x); //è®¾å®šæ£€æµ‹é˜ˆå€¼ï¼ŒèŒƒå›´[0,0.5)ã€‚é»˜è®¤ä¸º0.2 å³ï¼šread(x,y)æ—¶ï¼Œåƒç´ ç°åº¦[0,0.2*255]ä¸ºç™½è‰²ï¼Œ[0.8*255,255]ä¸ºé»‘è‰²ï¼ŒèŒƒå›´å¤–åˆ™è®¤ä¸ºæ¨¡ç³Šï¼ŒæŠ›å‡ºå¼‚å¸¸
+	void flush(); //!!loadQRCode(æ–°çš„å¸§)ä¹‹å‰éƒ½è¦åˆ·æ–°
 	void ReadFrame(const char* str, bool datamatrix[][TSIZE]);
 	~QRDecodeTools();
 private:
 	int gotQR;
 	float Eps;
-	cv::QRCodeDetector wheels;
-	std::vector <cv::Point2f> Rect;
-	cv::Point map(const int x, const int y) const; //read×ø±êµ½ÏñËØµã×ø±êµÄÓ³Éä
+	cv::Point map(const int x, const int y) const; //readåæ ‡åˆ°åƒç´ ç‚¹åæ ‡çš„æ˜ å°„
 	cv::Point2f rate(const int p, const cv::Point2f& a, const cv::Point2f& b)const;
 };
 
-using namespace cv;
 void Demo(char str[]);
-bool readFile(const char str[]);
-void process(bool arr[][TSIZE], int flame, int len);
-void readframes();
 int BTD(bool arr[], int lens);
+bool readFile(const char str[]);
 bool writeFile(bool arr[][TSIZE]);
+void readframes();
+void process(bool arr[][TSIZE], int flame, int len);
+
