@@ -1,6 +1,13 @@
 #pragma once
 #include "opencv2/opencv.hpp"
 #include <vector>
+
+void readframes();//视频解码之后调用，读取图片信息
+int BTD(bool arr[], int lens);//writeFile内调用的函数，把图片上读取的二进制信息转化为十进制返回
+bool readFile(const char str[]);//读取二进制文本文件，参数为文件名，读取之后把信息放在一个二维的bool数组，后调用WriteFrame函数把信息写入图片
+bool writeFile(bool arr[][TSIZE]);//处理bool数组里面的信息。bool数组由readframes函数读取信息之后传入，帧编码提取、结束帧判断、行列码校验和文本信息提取
+void process(bool arr[][TSIZE], int flame, int len);//readFile函数内调用的函数，处理帧编码，结束符以及长度，行列码
+
 class QRCodeTools { //两种工具的基类
 public:
 	QRCodeTools(int v = 11); //v是二维码的版本
