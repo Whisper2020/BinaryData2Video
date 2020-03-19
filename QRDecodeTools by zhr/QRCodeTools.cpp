@@ -248,3 +248,362 @@ int QREncodeTools::epseq(float x, float y) const
 	//std::cout << "Comparing" << x << ' ' << y << std::endl;
 	return fabs(x - y) < 1e-1;
 }
+
+void WriteFrame(bool datamatrix[][TSIZE], int flames)
+{
+	constexpr int AreaCount = 11;
+	constexpr int QrLocaterSize = 8;
+	constexpr int QrSize = 4 * (VERSION - 1) + 21;
+
+	const int areapos[AreaCount][2][2] =//[2][2]第一维度为宽高，第二维度为左上角坐标
+	{
+	 {{QrLocaterSize - 2,3} ,{0,QrLocaterSize}},//帧编码与结束帧标记
+	 {{QrLocaterSize - 2,2},{0,QrLocaterSize + 3}},//结束帧信息长度
+
+	 {{QrLocaterSize - 2,QrSize - 5 - 2 * QrLocaterSize},{0,QrLocaterSize + 5}},//左侧数据区
+	 {{QrSize - 2 * QrLocaterSize,QrLocaterSize - 2},{QrLocaterSize,0}},//上侧数据区
+	 {{QrSize - 1 - QrLocaterSize,QrSize - 1 - QrLocaterSize},{QrLocaterSize,QrLocaterSize}},//中央数据区
+
+	 {{1,QrSize - 5 - 2 * QrLocaterSize},{QrLocaterSize - 1,QrLocaterSize}},//左侧行校验码
+	 {{QrLocaterSize - 2,1},{0,QrSize - 1 - QrLocaterSize}},//左侧列校验码
+	 {{1,QrLocaterSize - 2},{QrSize - 1 - QrLocaterSize,0}},//上侧行校验码
+	 {{QrSize - 2 * QrLocaterSize,1},{QrLocaterSize,QrLocaterSize - 1}},//上侧列校验码
+	 {{1,QrSize - QrLocaterSize},{QrSize - 1,QrLocaterSize}},//中央行校验码
+	 {{QrSize - QrLocaterSize,1},{QrLocaterSize,QrSize - 1}}//中央列校验码
+	};
+	QREncodeTools Frame;
+	Mat img;
+	char name[20];
+	sprintf_s(name, "%s%d%s", "image", flames, ".jpg");
+	for (int i = 0; i < AreaCount; i++)
+		for (int k = areapos[i][1][1]; k < areapos[i][0][1] + areapos[i][1][1]; k++)
+			for (int j = areapos[i][1][0]; j < areapos[i][0][0] + areapos[i][1][0]; j++)
+				Frame.write(j, k,datamatrix[j][k]);
+	Frame.output(img);
+	Frame.flush();
+	imwrite(name, img);
+}
+
+bool readFile(const char str[]) {
+	FILE* filePoint = NULL;// fopen(str, "rb");
+	fopen_s(&filePoint, str, "rb");
+	char ch;
+	int i, j, index, flame = 1;
+	bool arr[TSIZE][TSIZE];
+	const int inforlens = ((TSIZE - 6) * TSIZE - 153) / 8;
+	for (i = 0; i < TSIZE; i++)
+		for (j = 0; j < TSIZE; j++)
+			arr[i][j] = true;
+	while (!feof(filePoint)) {
+		for (index = i = 0, j = 8; !feof(filePoint) && index < inforlens; index++) {
+			fread(&ch, sizeof(char), 1, filePoint);
+			if (i >= 0 && i <= 5 && j >= 8) {
+				for (int k = 0; k < 8; k++) {
+					arr[i][j++] = ch >> k & 1;
+					if (j >= TSIZE - 9) {
+						j = 8;
+						i++;
+						if (i > 5) {
+							i = 13;
+							j = 0;
+						}
+					}
+				}
+			}
+			else if (i > 6 && j >= 0 && j <= 7) {
+				for (int k = 0; k < 8; k++) {
+					arr[i][j++] = ch >> k & 1;
+					if (j >= 6 && j < 8) {
+						j = 0;
+						i++;
+						if (i >= TSIZE - 9) {
+							i = 8;
+							j = 8;
+						}
+					}
+				}
+			}
+			else if (i >= 8 && j >= 8) {
+				for (int k = 0; k < 8; k++) {
+					//cout << index << ends <<i << ends << j << endl;
+					arr[i][j++] = ch >> k & 1;
+					if (j >= TSIZE - 1) {
+						j = 8;
+						i++;
+					}
+				}
+			}
+		}
+		if (index == inforlens)
+			process(arr, flame, -1);
+		else
+			process(arr, flame, index - 1);/*
+		for (i = 0; i < TSIZE; i++) {
+			for (j = 0; j < TSIZE; j++) {
+				if (arr[i][j])
+					cout << 1;// << ends;
+				else
+					cout << 0;// << ends;
+			}
+			cout << endl;
+		}
+		cout << endl;*/
+		WriteFrame(arr, flame++);
+		//writeFile(arr);
+	}
+	return true;
+}
+
+void process(bool arr[][TSIZE], int flame, int len) {
+	int i = 8, j = 0, times = 0;
+
+	/*填充帧编号*/
+	for (int k = 0; k < 14; k++) {
+		arr[i][j++] = flame >> k & 1;
+		if (j >= 6) {
+			i++;
+			j = 0;
+		}
+	}
+
+	/*如果len = -1，说明该帧为完整帧，结束帧标记置0，帧信息长度也置0*/
+	if (len == -1) {
+		arr[i][j] = 1;
+		i++, j = 0;
+		for (int k = 11; k >= 0; k--) {
+			arr[i][j++] = 1;
+			if (j >= 6) {
+				i++;
+				j = 0;
+			}
+		}
+	}
+
+	/*如果len!=0，说明已经是最后一帧，帧结束标记置1，帧信息长度为len*/
+	else {
+		arr[i][j] = 0;
+		i++, j = 0;
+		for (int k = 0; k < 12; k++) {
+			arr[i][j++] = len >> k & 1;
+			if (j >= 6) {
+				i++;
+				j = 0;
+			}
+		}
+	}
+
+	/*数据区1的行校验码*/
+	for (i = 0; i < 6; i++) {
+		for (j = 8, times = 0; j < TSIZE - 9; j++)
+			if (arr[i][j])
+				times++;
+		if (times % 2)
+			arr[i][j] = 1;
+		else
+			arr[i][j] = 0;
+	}
+
+	/*数据区1的列校验码*/
+	for (j = 8; j < TSIZE - 8; j++) {
+		for (i = times = 0; i < 6; i++)
+			if (arr[i][j])
+				times++;
+		if (times % 2)
+			arr[i + 1][j] = 1;
+		else
+			arr[i + 1][j] = 0;
+	}
+
+	/*数据区2的列校验码*/
+	for (j = 0; j < 6; j++) {
+		for (i = 8, times = 0; i < TSIZE - 9; i++)
+			if (arr[i][j])
+				times++;
+		if (times % 2)
+			arr[i][j] = 1;
+		else
+			arr[i][j] = 0;
+	}
+
+	/*数据区2的行校验码*/
+	for (i = 8; i < TSIZE - 8; i++) {
+		for (j = times = 0; j < 6; j++)
+			if (arr[i][j])
+				times++;
+		if (times % 2)
+			arr[i][j + 1] = 1;
+		else
+			arr[i][j + 1] = 0;
+	}
+
+	/*数据区3的行校验码*/
+	for (i = 8; i < TSIZE - 1; i++) {
+		for (j = 8, times = 0; j < TSIZE - 1; j++)
+			if (arr[i][j])
+				times++;
+		if (times % 2)
+			arr[i][j] = 1;
+		else
+			arr[i][j] = 0;
+	}
+
+	/*数据区3的列校验码*/
+	for (j = 8; j < TSIZE; j++) {
+		for (i = 8, times = 0; i < TSIZE - 1; i++)
+			if (arr[i][j])
+				times++;
+		if (times % 2)
+			arr[i][j] = 1;
+		else
+			arr[i][j] = 0;
+	}
+}
+
+bool writeFile(bool arr[][TSIZE]) {
+	const int inforlens = ((TSIZE - 6) * TSIZE - 153) / 8;
+	char str[inforlens + 10];
+	bool ends = false, frameNUM[14] = { false }, terminalLEN[12] = { false }, Byte[8] = { false };
+	int i = 8, j = 0, k, framenum = 0, terminallen = 0, rows = 0, cols = 0, times;
+	
+	/*for (i = 0; i < TSIZE; i++) {
+		for (j = 0; j < TSIZE; j++) {
+			if (arr[i][j])
+				cout << 1;// << ends;
+			else
+				cout << 0;// << ends;
+		}
+		cout << endl;
+	}
+	cout << endl;*/
+
+	/*读取帧编码*/
+	for (k = 0; k < 14; k++) {
+		frameNUM[k] = arr[i][j++];
+		if (j >= 6) {
+			i++;
+			j = 0;
+		}
+	}
+	framenum = BTD(frameNUM, 14);//二进制转化
+
+	/*读取是否为最后一帧，最后一帧提取结束帧信息长度*/
+	if (arr[i][j])
+		terminallen = inforlens;
+	else {
+		int k = 0;
+		for (i = 11; i < 13; i++)
+			for (j = 0; j < 6; j++)
+				terminalLEN[k++] = arr[i][j];
+		terminallen = BTD(terminalLEN, k);
+		ends = true;
+	}
+
+	/*验证数据区1的信息*//*
+	for (i = 0; i < 6; i++) {
+		for (j = 8, times = 0; j < TSIZE - 9; j++)
+			if (arr[i][j])
+				times++;
+		if ((times % 2) ^ arr[i][j])
+			rows = i;
+	}
+	for (j = 8; j < TSIZE - 8; j++) {
+		for (i = times = 0; i < 6; i++)
+			if (arr[i][j])
+				times++;
+		if ((times % 2) ^ arr[i + 1][j]){
+			arr[rows][j] = !arr[rows][j];
+			//cout << rows << "     " << j << endl;
+		}
+	}
+
+	/*验证数据区2的信息*//*
+	for (j = 0; j < 6; j++) {
+		for (i = 8, times = 0; i < TSIZE - 9; i++)
+			if (arr[i][j])
+				times++;
+		if ((times % 2) ^ arr[i][j])
+			cols = i;
+	}
+	for (i = 8; i < TSIZE - 8; i++) {
+		for (j = times = 0; j < 6; j++)
+			if (arr[i][j])
+				times++;
+		if ((times % 2) ^ arr[i][j + 1])
+			arr[i][cols] = !arr[i][cols];
+	}
+
+	/*验证数据区3的信息*//*
+	for (i = 8; i < TSIZE - 1; i++) {
+		for (j = 8, times = 0; j < TSIZE - 1; j++)
+			if (arr[i][j])
+				times++;
+		if ((times % 2) ^ arr[i][j])
+			rows = i;
+	}
+	for (j = 8; j < TSIZE; j++) {
+		for (i = times = 8; i < TSIZE - 1; i++)
+			if (arr[i][j])
+				times++;
+		if ((times % 2) ^ arr[i][j])
+			arr[rows][j] = !arr[rows][j];
+	}
+
+	/*读取信息*/
+	for (k = 0, i = 0, j = 8; k < terminallen; k++) {
+		for (times = 0; times < 8; times++) {
+			Byte[times] = arr[i][j++];
+			if (i >= 0 && i <= 5 && j >= 8) {
+				if (j >= TSIZE - 9) {
+					j = 8;
+					i++;
+					if (i > 5) {
+						i = 13;
+						j = 0;
+					}
+				}
+			}
+			else if (i > 6 && j >= 0 && j <= 7) {
+				if (j >= 6 && j < 8) {
+					j = 0;
+					i++;
+					if (i >= TSIZE - 9) {
+						i = 8;
+						j = 8;
+					}
+				}
+			}
+			else if (i >= 8 && j >= 8) {
+				if (j >= TSIZE - 1) {
+					j = 8;
+					i++;
+				}
+			}
+		}
+		str[k] = (char)BTD(Byte, 8);
+	}
+	str[k] = '\0';
+	std::cout << str;
+	return ends;
+}
+
+int BTD(bool arr[], int lens) {
+	int sums = 0, j = 1;
+	for (int i = 0; i < lens; i++, j = j << 1)
+		sums += arr[i] * j;
+	return sums;
+}
+
+void readframes()
+{
+	QRDecodeTools Frame;
+	bool arr[TSIZE][TSIZE] = { 1 };
+	int i = 1;
+	char name[20];
+	while (1)
+	{
+		sprintf_s(name, "%s%d%s", "image", i++, ".jpg");
+		Frame.ReadFrame(name, arr);
+		if (writeFile(arr))
+			break;
+	}
+}
