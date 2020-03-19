@@ -1,6 +1,7 @@
 #include "QRCodeTools.h"
-#include <iomanip>
-QRCodeTools::QRCodeTools(int v) :Ver(v), sz(4 * (v - 1) + 21), dbg(false) {}
+#include <iostream>
+
+QRCodeTools::QRCodeTools(int v) :Ver(v), sz(4 * (v - 1) + 21), dbg(false), maskID(0) {}
 
 QRCodeTools::~QRCodeTools() {}
 
@@ -22,7 +23,18 @@ QRDecodeTools::~QRDecodeTools()
 
 int QRCodeTools::mask(const int x, const int y) const
 {
-	//return (x * y % 3 + (x + y) & 1) & 1;
+	//if (x < 6 && x > 2 && y == 10)
+	//	return 0;
+	//switch (maskID) {
+	//case 0: return (x + y) & 1;
+	//case 1: return y & 1;
+	//case 2: return x % 3 == 0;
+	//case 3: return (x + y) % 3 == 0;
+	//case 4: return ((y & 1) + (x % 3)) & 1;
+	//case 5: return (((x * y) & 1) + x * y % 3) % 3 == 0;
+	//case 6: return (((x * y) & 1) + x * y % 3) & 1;
+	//case 7: return ((x * y) % 3 + (x + y) & 1) & 1;
+	//}
 	return 0;
 }
 
@@ -32,6 +44,7 @@ int QRCodeTools::checkPos(const int x, const int y) const //return 1 if err
 	if (x < 0 || x >= sz || y < 0 || y >= sz)	chk = 1;
 	else if (x == 6 || y == 6)	chk = 1;
 	else if ((x < 8 && y < 8) || (x < 8 && sz - y < 9) || (sz - x < 9 && y < 8))	chk = 1;
+	else if (x > 2 && x < 6 && y == 10)	chk = 1;
 	return chk;
 }
 
@@ -60,6 +73,9 @@ int QRDecodeTools::loadQRCode(cv::InputArray in)
 		cv::cvtColor(in, img, cv::COLOR_BGR2GRAY);
 	else
 		in.getMat().copyTo(img);
+	maskID = ((img.at<uchar>(map(3, 10)) & 1) << 2) + ((img.at<uchar>(map(4, 10)) & 1) << 1) + (img.at<uchar>(map(5, 10)) & 1);
+	if (dbg)
+		std::cout << "maskID=" << maskID << std::endl;
 	return true;
 }
 
@@ -78,11 +94,11 @@ int QRDecodeTools::read(const int x, const int y) const
 		std::cout << "Pos error:(" << x << "," << y << ") can't be read." << std::endl;
 		return -1;
 	}
-	val = img.at<uchar>(map(x, y)) ^ mask(x, y);
+	val = img.at<uchar>(map(x, y));
 	if (dbg)
 		std::cout << "got " << val << " at " << map(x, y) << std::endl;
-	if (val <= Eps * UCHAR_MAX)	return 0;
-	else if (val >= (1 - Eps) * UCHAR_MAX)	return 1;
+	if (val <= Eps * UCHAR_MAX)	return mask(x, y);
+	else if (val >= (1 - Eps) * UCHAR_MAX)	return !mask(x, y);
 	else throw val;
 }
 
@@ -96,6 +112,7 @@ void QRDecodeTools::setThreshold(const float x)
 void QRDecodeTools::flush()
 {
 	gotQR = 0;
+	maskID = 0;
 	Rect.clear();
 }
 
@@ -107,13 +124,14 @@ QREncodeTools::QREncodeTools(int v) :QRCodeTools(v) {
 
 void QREncodeTools::flush()
 {
+	maskID = 0;
 	src.copyTo(img);
 }
 
 int QREncodeTools::write(const int x, const int y, const int bit)
 {
 	if (checkPos(x, y)) {
-		std::cout << "Pos error:(" << x << "," << y << ") can't be written." << std::endl;
+		//std::cout << "Pos error:(" << x << "," << y << ") can't be written." << std::endl;
 		return -1;
 	}
 	img.at<uchar>(cv::Point(x + 3, y + 3)) = (bit ^ mask(x, y)) ? UCHAR_MAX : 0;
@@ -127,7 +145,7 @@ void QREncodeTools::display()const
 	std::cout << "Display QRCode:" << std::endl;
 	for (int i = 0; i < sz; ++i) {
 		for (int j = 0; j < sz; ++j)
-			std::cout << (img.at<uchar>(cv::Point(i + 3, j + 3)) ? "¡ö" : "¡õ");
+			std::cout << (img.at<uchar>(cv::Point(i + 3, j + 3)) ? "â– " : "â–¡");
 		std::cout << std::endl;
 	}
 }
@@ -135,23 +153,35 @@ void QREncodeTools::display()const
 cv::Size QREncodeTools::output(cv::OutputArray out, int rate)
 {
 	//img.copyTo(out);
+	if (checkValid(rate)) {
+		std::cerr << "this frame can't be encoded." << std::endl;
+		//std::cerr << "-1";
+		return cv::Size(0, 0);
+	}
+	//std::cout << "Here";
 	cv::Size outSize(sz + 6, sz + 6);
 	outSize *= rate;
+	if (dbg) {
+		std::cout << "MaskID=" << maskID << std::endl;
+	}
+	img.at<uchar>(cv::Point(3 + 3, 10 + 3)) = ((maskID >> 2) & 1) ? UCHAR_MAX : 0;
+	img.at<uchar>(cv::Point(4 + 3, 10 + 3)) = ((maskID >> 1) & 1) ? UCHAR_MAX : 0;
+	img.at<uchar>(cv::Point(5 + 3, 10 + 3)) = (maskID & 1) ? UCHAR_MAX : 0;
 	cv::resize(img, out, outSize, rate, rate, cv::INTER_NEAREST);
 	return outSize;
 }
 
-void QREncodeTools::makeSrc() //Éú³É¶şÎ¬ÂëÄ£°å
+void QREncodeTools::makeSrc() //ç”ŸæˆäºŒç»´ç æ¨¡æ¿
 {
-	drawLocator(6, 6); //»­ËÄ¸ö¶¨Î»¿é
+	drawLocator(6, 6); //ç”»å››ä¸ªå®šä½å—
 	drawLocator(6, sz - 1);
 	drawLocator(sz - 1, 6);
 	//drawLocator(sz - 1, sz - 1);
-	for (int i = 9; i < sz - 3; ++i) { //»­Ê±¼äÏß
+	for (int i = 9; i < sz - 3; ++i) { //ç”»æ—¶é—´çº¿
 		src.at<uchar>(cv::Point(i, 9)) = (i & 1) ? 0 : 255;
 		src.at<uchar>(cv::Point(9, i)) = (i & 1) ? 0 : 255;
 	}
-	for (int i = 0; i < sz + 6; ++i) //Çå¿Õ±ß¿ò
+	for (int i = 0; i < sz + 6; ++i) //æ¸…ç©ºè¾¹æ¡†
 		for (int j = 0; j < 3; ++j) {
 			src.at<uchar>(cv::Point(i, j)) = 255;
 			src.at<uchar>(cv::Point(j, i)) = 255;
@@ -170,41 +200,52 @@ void QREncodeTools::drawLocator(const int x, const int y)
 		}
 }
 
-void QRDecodeTools::ReadFrame(const char* str, bool datamatrix[][TSIZE])
+int QREncodeTools::checkValid(const int rate)
 {
-	Mat img = imread(str);
-	flush();
-	loadQRCode(img);
-	int len = 0;
-	for (int i = 0; i < AreaCount; i++)
-		for (int k = areapos[i][1][1]; k < areapos[i][0][1] + areapos[i][1][1]; k++)
-			for (int j = areapos[i][1][0]; j < areapos[i][0][0] + areapos[i][1][0]; j++)
-			{
-				datamatrix[j][k] = read(j, k);
-			}
-	writeFile(datamatrix);
+
+	cv::resize(img, tmp, cv::Size(sz + 6, sz + 6) * rate, rate, rate, cv::INTER_NEAREST);
+	if (maskID) {
+		if (dbg)
+			std::cout << "Change mask:" << maskID << std::endl;
+		//cv::namedWindow("Image", cv::WINDOW_AUTOSIZE);
+		//imshow("Image", tmp);
+		//cv::waitKey();
+	}
+
+	//imwrite("tmp.jpg", tmp);
+	if (wheels.detect(tmp, Rect) && (epseq(Rect[0].y, Rect[1].y) && epseq(Rect[0].x, Rect[3].x) && epseq(Rect[1].x, Rect[2].x) && epseq(Rect[2].y, Rect[3].y)))
+		return 0;
+	return regenerate(rate);
 }
 
-void QREncodeTools::WriteFrame(bool datamatrix[][TSIZE], int flames)
+int QREncodeTools::regenerate(const int rate)
 {
-	Mat img;
-	char name[20];
-	sprintf_s(name, "%s%d%s", "image", flames, ".jpg");
-	for (int i = 0; i < AreaCount; i++)
-	{
-		for (int k = areapos[i][1][1]; k < areapos[i][0][1] + areapos[i][1][1]; k++)
-		{
-			for (int j = areapos[i][1][0]; j < areapos[i][0][0] + areapos[i][1][0]; j++)
-			{
-				write(j, k, datamatrix[j][k]);
-			}
-		}
+	int bit;
+	if (maskID == 7) {
+		return -1;
 	}
-	output(img);
-	flush();
-	imwrite(name, img);
-	//namedWindow("Image", WINDOW_AUTOSIZE);
-	//imshow("Image", img);
+	for (int i = 0; i < sz; ++i)
+		for (int j = 0; j < sz; ++j)
+			if (!checkPos(i, j)) {
+				bit = img.at<uchar>(cv::Point(i + 3, j + 3)) & 1;
+				bit ^= mask(i, j);
+				img.at<uchar>(cv::Point(i + 3, j + 3)) = bit;
+			}
+	maskID++;
+	for (int i = 0; i < sz; ++i)
+		for (int j = 0; j < sz; ++j)
+			if (!checkPos(i, j)) {
+				bit = img.at<uchar>(cv::Point(i + 3, j + 3));
+				bit ^= mask(i, j);
+				img.at<uchar>(cv::Point(i + 3, j + 3)) = bit ? UCHAR_MAX : 0;
+			}
+	return checkValid(rate);
+}
+
+int QREncodeTools::epseq(float x, float y) const
+{
+	//std::cout << "Comparing" << x << ' ' << y << std::endl;
+	return fabs(x - y) < 1e-1;
 }
 
 void Demo(char str[]) {
@@ -269,8 +310,36 @@ void Demo(char str[]) {
 	fclose(filePoint);
 }
 
-bool readFile(const char str[]) 
+void QREncodeTools::WriteFrame(bool datamatrix[][TSIZE], int flames)
 {
+	Mat img;
+	char name[20];
+	sprintf_s(name, "%s%d%s", "image", flames, ".jpg");
+	for (int i = 0; i < AreaCount; i++)
+		for (int k = areapos[i][1][1]; k < areapos[i][0][1] + areapos[i][1][1]; k++)
+			for (int j = areapos[i][1][0]; j < areapos[i][0][0] +areapos[i][1][0]; j++)
+				write(j, k,datamatrix[j][k]);
+	output(img);
+	flush();
+	imwrite(name, img);
+}
+
+void QRDecodeTools::ReadFrame(const char* str, bool datamatrix[][TSIZE])
+{
+	Mat img = imread(str);
+	flush();
+	loadQRCode(img);
+	int len = 0;
+	for (int i = 0; i < AreaCount; i++)
+		for (int k = areapos[i][1][1]; k < areapos[i][0][1] + areapos[i][1][1]; k++)
+			for (int j = areapos[i][1][0]; j < areapos[i][0][0] + areapos[i][1][0]; j++)
+			{
+				if(!((j==3||j==4||j==5)&&k==10))
+				datamatrix[j][k] = read(j, k);
+			}
+}
+
+bool readFile(const char str[]) {
 	QREncodeTools Frame;
 	FILE* filePoint = NULL;// fopen(str, "rb");
 	fopen_s(&filePoint, str, "rb");
@@ -281,7 +350,8 @@ bool readFile(const char str[])
 	for (i = 0; i < TSIZE; i++)
 		for (j = 0; j < TSIZE; j++)
 			arr[i][j] = true;
-	while (!feof(filePoint)) {
+	while (!feof(filePoint)) 
+	{
 		for (index = i = 0, j = 8; !feof(filePoint) && index < inforlens; index++) {
 			fread(&ch, sizeof(char), 1, filePoint);
 			if (i >= 0 && i <= 5 && j >= 8) {
@@ -324,9 +394,19 @@ bool readFile(const char str[])
 		if (index == inforlens)
 			process(arr, flame, -1);
 		else
-			process(arr, flame, index - 1);
+			process(arr, flame, index - 1);/*
+		for (i = 0; i < TSIZE; i++) {
+			for (j = 0; j < TSIZE; j++) {
+				if (arr[i][j])
+					cout << 1;// << ends;
+				else
+					cout << 0;// << ends;
+			}
+			cout << endl;
+		}
+		cout << endl;*/
 		Frame.WriteFrame(arr, flame++);
-		writeFile(arr);
+		//writeFile(arr);
 	}
 	return true;
 }
@@ -334,7 +414,7 @@ bool readFile(const char str[])
 void process(bool arr[][TSIZE], int flame, int len) {
 	int i = 8, j = 0, times = 0;
 
-	/*Ìî³äÖ¡±àºÅ*/
+	/*å¡«å……å¸§ç¼–å·*/
 	for (int k = 0; k < 14; k++) {
 		arr[i][j++] = flame >> k & 1;
 		if (j >= 6) {
@@ -343,7 +423,7 @@ void process(bool arr[][TSIZE], int flame, int len) {
 		}
 	}
 
-	/*Èç¹ûlen = -1£¬ËµÃ÷¸ÃÖ¡ÎªÍêÕûÖ¡£¬½áÊøÖ¡±ê¼ÇÖÃ0£¬Ö¡ĞÅÏ¢³¤¶ÈÒ²ÖÃ0*/
+	/*å¦‚æœlen = -1ï¼Œè¯´æ˜è¯¥å¸§ä¸ºå®Œæ•´å¸§ï¼Œç»“æŸå¸§æ ‡è®°ç½®0ï¼Œå¸§ä¿¡æ¯é•¿åº¦ä¹Ÿç½®0*/
 	if (len == -1) {
 		arr[i][j] = 1;
 		i++, j = 0;
@@ -356,7 +436,7 @@ void process(bool arr[][TSIZE], int flame, int len) {
 		}
 	}
 
-	/*Èç¹ûlen!=0£¬ËµÃ÷ÒÑ¾­ÊÇ×îºóÒ»Ö¡£¬Ö¡½áÊø±ê¼ÇÖÃ1£¬Ö¡ĞÅÏ¢³¤¶ÈÎªlen*/
+	/*å¦‚æœlen!=0ï¼Œè¯´æ˜å·²ç»æ˜¯æœ€åä¸€å¸§ï¼Œå¸§ç»“æŸæ ‡è®°ç½®1ï¼Œå¸§ä¿¡æ¯é•¿åº¦ä¸ºlen*/
 	else {
 		arr[i][j] = 0;
 		i++, j = 0;
@@ -369,7 +449,7 @@ void process(bool arr[][TSIZE], int flame, int len) {
 		}
 	}
 
-	/*Êı¾İÇø1µÄĞĞĞ£ÑéÂë*/
+	/*æ•°æ®åŒº1çš„è¡Œæ ¡éªŒç */
 	for (i = 0; i < 6; i++) {
 		for (j = 8, times = 0; j < TSIZE - 9; j++)
 			if (arr[i][j])
@@ -380,7 +460,7 @@ void process(bool arr[][TSIZE], int flame, int len) {
 			arr[i][j] = 0;
 	}
 
-	/*Êı¾İÇø1µÄÁĞĞ£ÑéÂë*/
+	/*æ•°æ®åŒº1çš„åˆ—æ ¡éªŒç */
 	for (j = 8; j < TSIZE - 8; j++) {
 		for (i = times = 0; i < 6; i++)
 			if (arr[i][j])
@@ -391,7 +471,7 @@ void process(bool arr[][TSIZE], int flame, int len) {
 			arr[i + 1][j] = 0;
 	}
 
-	/*Êı¾İÇø2µÄÁĞĞ£ÑéÂë*/
+	/*æ•°æ®åŒº2çš„åˆ—æ ¡éªŒç */
 	for (j = 0; j < 6; j++) {
 		for (i = 8, times = 0; i < TSIZE - 9; i++)
 			if (arr[i][j])
@@ -402,7 +482,7 @@ void process(bool arr[][TSIZE], int flame, int len) {
 			arr[i][j] = 0;
 	}
 
-	/*Êı¾İÇø2µÄĞĞĞ£ÑéÂë*/
+	/*æ•°æ®åŒº2çš„è¡Œæ ¡éªŒç */
 	for (i = 8; i < TSIZE - 8; i++) {
 		for (j = times = 0; j < 6; j++)
 			if (arr[i][j])
@@ -413,7 +493,7 @@ void process(bool arr[][TSIZE], int flame, int len) {
 			arr[i][j + 1] = 0;
 	}
 
-	/*Êı¾İÇø3µÄĞĞĞ£ÑéÂë*/
+	/*æ•°æ®åŒº3çš„è¡Œæ ¡éªŒç */
 	for (i = 8; i < TSIZE - 1; i++) {
 		for (j = 8, times = 0; j < TSIZE - 1; j++)
 			if (arr[i][j])
@@ -424,7 +504,7 @@ void process(bool arr[][TSIZE], int flame, int len) {
 			arr[i][j] = 0;
 	}
 
-	/*Êı¾İÇø3µÄÁĞĞ£ÑéÂë*/
+	/*æ•°æ®åŒº3çš„åˆ—æ ¡éªŒç */
 	for (j = 8; j < TSIZE; j++) {
 		for (i = 8, times = 0; i < TSIZE - 1; i++)
 			if (arr[i][j])
@@ -436,14 +516,24 @@ void process(bool arr[][TSIZE], int flame, int len) {
 	}
 }
 
-bool writeFile(bool arr[][TSIZE]) 
-{
+bool writeFile(bool arr[][TSIZE]) {
 	const int inforlens = ((TSIZE - 6) * TSIZE - 153) / 8;
 	char str[inforlens + 10];
 	bool ends = false, frameNUM[14] = { false }, terminalLEN[12] = { false }, Byte[8] = { false };
-	int i = 8, j = 0, k, framenum = 0, terminallen = 0, rows=0, cols=0, times;
+	int i = 8, j = 0, k, framenum = 0, terminallen = 0, rows = 0, cols = 0, times;
+	
+	/*for (i = 0; i < TSIZE; i++) {
+		for (j = 0; j < TSIZE; j++) {
+			if (arr[i][j])
+				cout << 1;// << ends;
+			else
+				cout << 0;// << ends;
+		}
+		cout << endl;
+	}
+	cout << endl;*/
 
-	/*¶ÁÈ¡Ö¡±àÂë*/
+	/*è¯»å–å¸§ç¼–ç */
 	for (k = 0; k < 14; k++) {
 		frameNUM[k] = arr[i][j++];
 		if (j >= 6) {
@@ -451,9 +541,9 @@ bool writeFile(bool arr[][TSIZE])
 			j = 0;
 		}
 	}
-	framenum = BTD(frameNUM, 14);//¶ş½øÖÆ×ª»¯
+	framenum = BTD(frameNUM, 14);//äºŒè¿›åˆ¶è½¬åŒ–
 
-	/*¶ÁÈ¡ÊÇ·ñÎª×îºóÒ»Ö¡£¬×îºóÒ»Ö¡ÌáÈ¡½áÊøÖ¡ĞÅÏ¢³¤¶È*/
+	/*è¯»å–æ˜¯å¦ä¸ºæœ€åä¸€å¸§ï¼Œæœ€åä¸€å¸§æå–ç»“æŸå¸§ä¿¡æ¯é•¿åº¦*/
 	if (arr[i][j])
 		terminallen = inforlens;
 	else {
@@ -465,7 +555,7 @@ bool writeFile(bool arr[][TSIZE])
 		ends = true;
 	}
 
-	/*ÑéÖ¤Êı¾İÇø1µÄĞÅÏ¢*/
+	/*éªŒè¯æ•°æ®åŒº1çš„ä¿¡æ¯*//*
 	for (i = 0; i < 6; i++) {
 		for (j = 8, times = 0; j < TSIZE - 9; j++)
 			if (arr[i][j])
@@ -477,11 +567,13 @@ bool writeFile(bool arr[][TSIZE])
 		for (i = times = 0; i < 6; i++)
 			if (arr[i][j])
 				times++;
-		if ((times % 2) ^ arr[i + 1][j])
+		if ((times % 2) ^ arr[i + 1][j]){
 			arr[rows][j] = !arr[rows][j];
+			//cout << rows << "     " << j << endl;
+		}
 	}
 
-	/*ÑéÖ¤Êı¾İÇø2µÄĞÅÏ¢*/
+	/*éªŒè¯æ•°æ®åŒº2çš„ä¿¡æ¯*//*
 	for (j = 0; j < 6; j++) {
 		for (i = 8, times = 0; i < TSIZE - 9; i++)
 			if (arr[i][j])
@@ -497,7 +589,7 @@ bool writeFile(bool arr[][TSIZE])
 			arr[i][cols] = !arr[i][cols];
 	}
 
-	/*ÑéÖ¤Êı¾İÇø3µÄĞÅÏ¢*/
+	/*éªŒè¯æ•°æ®åŒº3çš„ä¿¡æ¯*//*
 	for (i = 8; i < TSIZE - 1; i++) {
 		for (j = 8, times = 0; j < TSIZE - 1; j++)
 			if (arr[i][j])
@@ -513,7 +605,7 @@ bool writeFile(bool arr[][TSIZE])
 			arr[rows][j] = !arr[rows][j];
 	}
 
-	/*¶ÁÈ¡ĞÅÏ¢*/
+	/*è¯»å–ä¿¡æ¯*/
 	for (k = 0, i = 0, j = 8; k < terminallen; k++) {
 		for (times = 0; times < 8; times++) {
 			Byte[times] = arr[i][j++];
@@ -561,12 +653,15 @@ int BTD(bool arr[], int lens) {
 void readframes()
 {
 	QRDecodeTools Frame;
-	bool arr[TSIZE][TSIZE] = {1};
+	bool arr[TSIZE][TSIZE] = { 1 };
 	int i = 1;
 	char name[20];
-	do
+	while (1)
 	{
 		sprintf_s(name, "%s%d%s", "image", i++, ".jpg");
 		Frame.ReadFrame(name, arr);
-	} while (!writeFile(arr));
+		if (writeFile(arr))
+			break;
+	}
 }
+
